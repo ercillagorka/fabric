@@ -1,5 +1,4 @@
-fabric
-======
+"""
 Egilea:         gorka ercilla, ercillagorka@gmail.com
 server:         Ubuntu 12.04
 Zer egiten du:
@@ -16,3 +15,29 @@ Zer egiten du: Script honek fabric instalatuta eukitzea eskatzen dotzu. => (http
               2) Zip zure git proiektua eta kopiatu urruneko zerbitzaria, sortu "bertsioa" karpeta eta deskonprimitu kodea han.
                   Urruneko karpeta jada existitzen bada huts egingo du.
               3) Instalatu zure aplikazioa nginx eta gunicorn zerbitzarian
+"""
+
+from fabric.api import *
+from fabric.operations import *
+
+# globals
+env.project_name = 'webme'
+
+
+def environment():
+    #     Erabiltzaile lokala, ta bardine serbidorean errazago izateko.
+    env.user = 'gorka'
+    #     Serbitzariaren ip-a, bat baino gehiago izen al da [192.168.14.1 , 192.168.14.2 , 192.168.14.3]
+    env.hosts = ['184.106.152.183']
+    env.deploy_user = 'gorka'
+    #     virtualenv egongo dan lekua
+    env.virtualenv = '$HOME/.virtualenvs'
+    #     virtualenv proiektuaren izena
+    env.virtualenvwrapper = env.project_name
+    #     virtuallenvwrapper aktibetako
+    env.activate = 'workon %s' % (env.virtualenvwrapper)
+    #     This path is used to change permissions
+    env.code_root_parent = "/var/www"
+    #     whole_path looks like /var/www/releases/1/webme
+    #     This is where the code really is
+    env.whole_path = "%s/%s/" % (env.code_root_parent, env.project_name)
