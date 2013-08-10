@@ -31,7 +31,7 @@ def environment():
     env.email = 'ercillagorka@gmail.com'
     env.repository = 'git@github.com:ercillagorka/syte.git'
     #     Serbitzariaren ip-a, bat baino gehiago izen al da [192.168.14.1 , 192.168.14.2 , 192.168.14.3]
-    env.hosts = ['184.106.152.183']
+    env.hosts = ['172.16.200.148']
     env.deploy_user = 'gorka'
     #     virtualenv egongo dan lekua
     env.virtualenv = '$HOME/.virtualenvs'
@@ -103,6 +103,17 @@ def download_git_repository():
     sudo('git clone %(repository)s' % env)
 
 
+def upload_tar_from_git(path):
+    require('whole_path', provided_by=[environment])
+    local('git archive --format=tar master | gzip > %(project_name)s.tar.gz' % env)
+    sudo('mkdir -p %s' % (path))
+    put('%(project_name)s.tar.gz' % env , '/tmp', mode=0755)
+    sudo('mv /tmp/%(project_name)s.tar.gz %(whole_path)s' % env)
+    sudo('cd %(whole_path)s && tar zxf %(project_name)s.tar.gz' % env)
+    reset_permissions_path()
+    local('rm %(project_name)s.tar.gz' % env)
+
+
 def install_requirements():
     require('whole_path', provided_by=[deploy, setup])
     sudo('cd %(whole_path)s; pip install -E . -r /requirements.txt' % env)
@@ -112,8 +123,9 @@ def install_requirements():
 def Configure_Nginx():
     require('whole_path', provided_by=[deploy, setup])
     sudo('rm -f /etc/nginx/sites-enabled/default')
-    put('%(fabfile_path)s/neat', '/etc/nginx/sites-available/' % env)
-    sudo('ln -s /etc/nginx/sites-available/neat /etc/nginx/sites-enabled/neat')
+    local('mv %(fabfile_path)s/conf_nginx %(fabfile_path)s/%(project_name)s' % env)
+    put('%(fabfile_path)s/%(project_name)s', '/etc/nginx/sites-available/' % env)
+    sudo('ln -s /etc/nginx/sites-available/%(project_name)s /etc/nginx/sites-enabled/%(project_name)s')
     reset_permissions_path
 
 
