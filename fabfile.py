@@ -75,12 +75,15 @@ def setup():
 
 
 def virtualenvwrapper_config():
+    sudo('cd %(whole_path)s' % env)
     sudo('pip install virtualenv')
     sudo('pip install virtualenvwrapper')
-    sudo('export WORKON_HOME=$HOME/.virtualenvs')
-    sudo('mkdir -p $WORKON_HOME')
-    sudo('source /usr/local/bin/virtualenvwrapper.sh')
-    sudo("export VIRTUALENVWRAPPER_VIRTUALENV_ARGS='--no-site-packages'")
+    with prefix('WORKON_HOME=$HOME/.virtualenvs'):
+        with prefix('mkdir -p $WORKON_HOME'):
+            with prefix('source /usr/local/bin/virtualenvwrapper.sh'):
+                with prefix("export VIRTUALENVWRAPPER_VIRTUALENV_ARGS='--no-site-packages'"):
+                    with prefix('mkvirtualenv larrabetzu'):
+                        run('workon larrabetzu')                            
 
 
 def deploy():
@@ -89,9 +92,13 @@ def deploy():
     require('code_root')
     # whole_path /var/www/webme/
     sudo('mkdir -p %(whole_path)s ; cd %(whole_path)s' % env)
+    configure_git()
+
+    upload()
     download_git_repository()
+
     install_requirements()
-    Configure_Nginx
+    Configure_Nginx()
     sudo('python manage.py syncdb')
     live_gunicorn_Supervisor()
     restart_webserver()
@@ -103,20 +110,23 @@ def download_git_repository():
     sudo('git clone %(repository)s' % env)
 
 
-def upload_tar_from_git(path):
+def upload():
+    require('hosts', provided_by=[environment])
     require('whole_path', provided_by=[environment])
+    print("Executing on %(hosts)s as %(user)s" % env)
+    sudo('cd')
     local('git archive --format=tar master | gzip > %(project_name)s.tar.gz' % env)
-    sudo('mkdir -p %s' % (path))
-    put('%(project_name)s.tar.gz' % env , '/tmp', mode=0755)
-    sudo('mv /tmp/%(project_name)s.tar.gz %(whole_path)s' % env)
+    put('%(project_name)s.tar.gz' % env , '' % env)
+    sudo('mv %(project_name)s.tar.gz %(whole_path)s' % env)
     sudo('cd %(whole_path)s && tar zxf %(project_name)s.tar.gz' % env)
     reset_permissions_path()
+    sudo('cd %(whole_path)s && rm %(project_name)s.tar.gz' % env)
     local('rm %(project_name)s.tar.gz' % env)
 
 
 def install_requirements():
     require('whole_path', provided_by=[deploy, setup])
-    sudo('cd %(whole_path)s; pip install -E . -r /requirements.txt' % env)
+    sudo('cd %(whole_path)s && pip install -E . -r requirements.txt' % env)
     reset_permissions()
 
 
