@@ -35,16 +35,15 @@ def environment():
     env.deploy_user = 'gorka'
     #     virtualenv egongo dan lekua
     env.virtualenv = '$HOME/.virtualenvs'
-    #     virtualenv proiektuaren izena
-    env.virtualenvwrapper = env.project_name
     #     virtuallenvwrapper aktibetako
-    env.activate = 'workon %(virtualenvwrapper)s' % env
+    env.activate = 'workon %(project_name)s' % env
     #     permisoak aldatuteko
     env.code_root_parent = "/var/www"
     env.code_root = '/var/www/'
     #     whole_path /var/www/webme/
     #     proiektuaren lekua
     env.whole_path = "%(code_root_parent)s/%(project_name)s/" % (env)
+
 
 
 def reset_permissions():
@@ -63,18 +62,38 @@ def configure_git():
     sudo('ssh-keygen -t rsa -C "%(email)s"' % env)
 
 
+
 def setup():
     require('hosts', provided_by=[environment])
     print("Executing on %(hosts)s as %(user)s" % env)
-    sudo('apt-get install -y git python python-dev python-pip python-setuptools nginx-full postgresql libpq-dev')
+    sudo('apt-get install -y git python python-dev python-pip python-setuptools nginx-full postgresql libpq-dev supervisor')
     sudo('mkdir -p %(code_root)s' % env)
-    configure_git
     virtualenvwrapper_config()
     reset_permissions()
-    deploy()
+
+
+def deploy():
+    require('hosts', provided_by=[environment,setup])
+    require('whole_path', provided_by=[environment])
+    require('code_root')
+    sudo('mkdir -p %(whole_path)s ; cd %(whole_path)s' % env)
+    if not env.repository == '':
+        if not console.confirm('Are you sure you want to download git for your repository?', default=False):
+            print("downloading git for your repository")
+            configure_git
+            download_git_repository()
+            utils.abort('Production deployment aborted.')
+    else:
+        upload()
+    install_requirements()
+    Configure_Nginx()
+    #sudo('python manage.py syncdb')
+    Configure_gunicorn_Supervisor()
+    restart_webserver()
 
 
 def virtualenvwrapper_config():
+    require('whole_path', provided_by=[deploy, setup])
     sudo('cd %(whole_path)s' % env)
     sudo('pip install virtualenv')
     sudo('pip install virtualenvwrapper')
@@ -82,26 +101,8 @@ def virtualenvwrapper_config():
         with prefix('mkdir -p $WORKON_HOME'):
             with prefix('source /usr/local/bin/virtualenvwrapper.sh'):
                 with prefix("export VIRTUALENVWRAPPER_VIRTUALENV_ARGS='--no-site-packages'"):
-                    with prefix('mkvirtualenv larrabetzu'):
-                        run('workon larrabetzu')                            
-
-
-def deploy():
-    require('hosts', provided_by=[environment])
-    require('whole_path', provided_by=[environment])
-    require('code_root')
-    # whole_path /var/www/webme/
-    sudo('mkdir -p %(whole_path)s ; cd %(whole_path)s' % env)
-    configure_git()
-
-    upload()
-    download_git_repository()
-
-    install_requirements()
-    Configure_Nginx()
-    sudo('python manage.py syncdb')
-    live_gunicorn_Supervisor()
-    restart_webserver()
+                    with prefix('mkvirtualenv  %(project_name)s' % env):
+                        run('%(activate)s' % env)                            
 
 
 def download_git_repository():
@@ -116,7 +117,7 @@ def upload():
     print("Executing on %(hosts)s as %(user)s" % env)
     sudo('cd')
     local('git archive --format=tar master | gzip > %(project_name)s.tar.gz' % env)
-    put('%(project_name)s.tar.gz' % env , '' % env)
+    put('%(project_name)s.tar.gz' % env , '' ,mode=0755)
     sudo('mv %(project_name)s.tar.gz %(whole_path)s' % env)
     sudo('cd %(whole_path)s && tar zxf %(project_name)s.tar.gz' % env)
     reset_permissions_path()
@@ -126,22 +127,26 @@ def upload():
 
 def install_requirements():
     require('whole_path', provided_by=[deploy, setup])
-    sudo('cd %(whole_path)s && pip install -E . -r requirements.txt' % env)
+    sudo('cd %(whole_path)s && pip install -r requirements.txt' % env)
     reset_permissions()
 
 
 def Configure_Nginx():
     require('whole_path', provided_by=[deploy, setup])
+    sudo('cd')
     sudo('rm -f /etc/nginx/sites-enabled/default')
     local('mv %(fabfile_path)s/conf_nginx %(fabfile_path)s/%(project_name)s' % env)
-    put('%(fabfile_path)s/%(project_name)s', '/etc/nginx/sites-available/' % env)
-    sudo('ln -s /etc/nginx/sites-available/%(project_name)s /etc/nginx/sites-enabled/%(project_name)s')
+    put('%(fabfile_path)s/%(project_name)s' % env , '', mode=0755 )
+    sudo('mv %(project_name)s /etc/nginx/sites-available/' % env)
+    sudo('ln -s /etc/nginx/sites-available/%(project_name)s /etc/nginx/sites-enabled/%(project_name)s'% env)
     reset_permissions_path
 
 
-def live_gunicorn_Supervisor():
+def Configure_gunicorn_Supervisor():
     require('whole_path', provided_by=[deploy, setup])
-    put('%(fabfile_path)s/%(project_name)s.conf', '/etc/supervisor/conf.d/' % env)
+    local('mv %(fabfile_path)s/app_name.conf %(fabfile_path)s/%(project_name)s.conf' % env)
+    put('%(fabfile_path)s/%(project_name)s.conf' % env, '', mode=0755)
+    sudo('mv %(project_name)s.conf /etc/supervisor/conf.d/' % env)
 
 
 def restart_webserver():

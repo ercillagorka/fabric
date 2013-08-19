@@ -2,12 +2,12 @@ server {
 
     listen       80;
     server_name  example.org;
-    access_log   /var/log/nginx/PROJECT_NAME.access.log;
-    error_log    /var/log/nginx/PROJECT_NAME.error.log;
-    root /var/www/PROJECT_NAME/;
+    access_log   /var/log/nginx/app_name.access.log;
+    error_log    /var/log/nginx/app_name.error.log;
+    root /var/www/app_name/;
 
     location  /static/ {
-        alias  /var/www/PROJECT_NAME/syte/static/;
+        alias  /var/www/app_name/syte/static/;
     }
 
     location  / {
